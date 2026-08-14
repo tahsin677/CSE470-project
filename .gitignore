@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.local
+.env.*.local
+dist/
+build/
+coverage/
+.vscode/
+.idea/
+melango/server/uploads/
+melango/client/dist/
