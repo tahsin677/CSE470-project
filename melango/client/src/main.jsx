@@ -103,7 +103,7 @@ function Home() {
       <main>
         {/* HERO SECTION */}
         <section className="hero-section">
-          <img className="hero-bg" src="/images/hero-bg.jpg" alt=""/>
+          <img className="hero-bg" src="/images/hero-bg.jpg?v=warm" alt=""/>
           <div className="hero-shade" aria-hidden="true"></div>
           <div className="hero-inner">
             <div className="hero-copy">
@@ -374,7 +374,7 @@ function CourseCard2({course}) {
             <span><Users size={16}/> {course.students} Students</span>
             <span><CalendarDays size={16}/> {course.time}</span>
           </div>
-          <NavLink to={'/courses/' + course.id} className="btn btn-primary w-100 mt-3">Preview This Course</NavLink>
+          <NavLink to={'/courses/' + course.id} className="btn btn-primary btn-preview-course w-100">Preview This Course</NavLink>
         </div>
       </div>
     </div>
