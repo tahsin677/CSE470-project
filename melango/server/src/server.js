@@ -10,7 +10,8 @@ async function start() {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(`[db] Connection failed: ${err.message}`);
-    console.error('[db] The API will start anyway - database routes will fail until Mongo is up.');
+    console.error('[db] Login and signup need a database. Check MongoDB or the in-memory fallback.');
+    process.exit(1);
   }
 
   const server = app.listen(env.port, () => {

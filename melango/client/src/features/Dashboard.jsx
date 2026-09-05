@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, BookOpen, ClipboardList, GraduationCap, Plus, Sparkles, Users } from 'lucide-react'
+import { BarChart3, BookOpen, ClipboardList, GraduationCap, Plus, Sparkles, Users } from '../icons'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import api, { unwrap } from '../services/api'
+import { avatarFor, welcomeNameFor } from '../publicData'
 import { fmtDate, Loading } from './shared'
 
 function kpiCards(role, kpis) {
@@ -56,15 +57,20 @@ export function AppDashboard({ user }) {
   const kpis = kpiCards(user.role, stats?.kpis)
   const chart = activityChart(stats?.recentActivity)
   const deadlines = stats?.upcomingDeadlines || []
+  const announcements = stats?.announcements || []
 
   return (
     <section className="dashboard">
       <div className="page-title">
-        <div>
-          <span className="eyebrow">YOUR LEARNING SPACE</span>
-          <h2>
-            {user.role === 'admin' ? 'Platform overview' : user.role === 'teacher' ? 'Teaching dashboard' : 'Keep moving forward.'}
-          </h2>
+        <div className="dash-welcome">
+          <img className="dash-welcome-photo" src={avatarFor(user.role)} alt=""/>
+          <div>
+            <span className="eyebrow">YOUR LEARNING SPACE</span>
+            <h2>
+              {user.role === 'admin' ? 'Platform overview' : user.role === 'teacher' ? 'Teaching dashboard' : 'Keep moving forward.'}
+            </h2>
+            <p className="dash-welcome-name">{welcomeNameFor(user.role)} · {user.role}</p>
+          </div>
         </div>
         <NavLink to={user.role === 'teacher' ? '/app/create-course' : '/app/courses'} className="btn btn-primary">
           <Plus size={17} />
@@ -135,6 +141,21 @@ export function AppDashboard({ user }) {
 
       <div className="row g-4 mt-1">
         <div className="col-lg-8">
+          {user.role === 'student' ? (
+            <div className="panel mb-4">
+              <h5>Announcements</h5>
+              {announcements.length ? announcements.slice(0, 5).map((item) => (
+                <div className="activity" key={item._id}>
+                  <span>•</span>
+                  <div>
+                    <b>{item.title}</b>
+                    <small>{fmtDate(item.createdAt)}</small>
+                  </div>
+                </div>
+              )) : <p className="text-muted small">No announcements yet.</p>}
+              <NavLink to="/app/announcements" className="small-link">See all announcements →</NavLink>
+            </div>
+          ) : null}
           <div className="panel">
             <h5>Recent activity</h5>
             {(stats?.recentActivity || []).length ? stats.recentActivity.slice(0, 6).map((x) => (

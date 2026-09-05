@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
-import api, { apiError, contentApi, engagementApi, unwrap } from '../services/api'
+import { NavLink } from 'react-router-dom'
+import { Plus } from '../icons'
+import api, { apiError, asList, contentApi, engagementApi, unwrap } from '../services/api'
 import { CoursePicker, Empty, fmtDate, Loading, Panel, useAccessibleCourses } from './shared'
 
 /* Feature 9: Announcements */
 export function AnnouncementsFeature({ user }) {
-  const { courses, courseId, setCourseId } = useAccessibleCourses(user)
+  const { courses, courseId, setCourseId } = useAccessibleCourses(user, { autoSelect: user.role === 'teacher' })
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ title: '', message: '' })
@@ -38,17 +39,32 @@ export function AnnouncementsFeature({ user }) {
     }
   }
 
+  const remove = async (id) => {
+    try {
+      await contentApi.removeAnnouncement(id)
+      setItems((current) => current.filter((item) => (item._id || item.id) !== id))
+      setMessage('Announcement deleted.')
+    } catch (err) {
+      setMessage(apiError(err))
+    }
+  }
+
   return (
     <Panel title="Announcement board">
+      <CoursePicker
+        courses={courses}
+        courseId={courseId}
+        setCourseId={setCourseId}
+        allowAll
+        allLabel={user.role === 'admin' ? 'Platform-wide (all students)' : 'All my courses'}
+      />
       {isTeacher && (
-        <>
-          <CoursePicker courses={courses} courseId={courseId} setCourseId={setCourseId} />
-          <form className="border rounded p-3 mb-3" onSubmit={post}>
-            <input className="form-control mb-2" placeholder="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <textarea className="form-control mb-2" placeholder="Message" required rows="3" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
-            <button className="btn btn-primary btn-sm"><Plus size={14} /> Post announcement</button>
-          </form>
-        </>
+        <form className="border rounded p-3 mb-3" onSubmit={post}>
+          <p className="small text-muted mb-2">{courseId ? 'This will post to the selected course.' : 'This will post to every student on Melango.'}</p>
+          <input className="form-control mb-2" placeholder="Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <textarea className="form-control mb-2" placeholder="Message" required rows="3" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+          <button className="btn btn-primary btn-sm"><Plus size={14} /> Post announcement</button>
+        </form>
       )}
       {message && <p className="small text-success">{message}</p>}
       {loading ? <Loading /> : !items.length ? <Empty title="announcements" role={user.role} /> : (
@@ -57,8 +73,10 @@ export function AnnouncementsFeature({ user }) {
             <div className="list-group-item px-0 py-3" key={a._id}>
               <b>{a.title}</b>
               <p className="small mb-1">{a.message}</p>
-              <small className="text-muted">{a.courseId?.courseName || 'Platform-wide'} · {fmtDate(a.createdAt)}</small>
-              {isTeacher && <button className="btn btn-sm btn-link text-danger" onClick={async () => { await contentApi.removeAnnouncement(a._id); load() }}>Delete</button>}
+              <div className="d-flex align-items-center gap-3">
+                <small className="text-muted">{fmtDate(a.createdAt)}</small>
+                {isTeacher ? <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => remove(a._id || a.id)}>Delete</button> : null}
+              </div>
             </div>
           ))}
         </div>
@@ -175,7 +193,7 @@ export function MessagesFeature({ user }) {
   const openChat = async (userId) => {
     setActive(userId)
     try {
-      setMessages(unwrap(await engagementApi.conversation(userId)) || [])
+      setMessages(asList(unwrap(await engagementApi.conversation(userId))))
     } catch {
       setMessages([])
     }
@@ -238,7 +256,7 @@ export function NotificationsFeature() {
   const load = async () => {
     setLoading(true)
     try {
-      setItems(unwrap(await engagementApi.notifications()) || [])
+      setItems(asList(unwrap(await engagementApi.notifications())))
     } catch {
       setItems([])
     } finally {
@@ -269,6 +287,7 @@ export function NotificationsFeature() {
                   <b>{n.title}</b>
                   <p className="small mb-0">{n.message}</p>
                   <small className="text-muted">{fmtDate(n.createdAt)}</small>
+                  {n.link ? <NavLink className="d-block small" to={n.link.startsWith('/app') ? n.link : '/app' + n.link}>Open</NavLink> : null}
                 </div>
                 {!n.isRead && <button className="btn btn-sm btn-link" onClick={() => markRead(n._id)}>Mark read</button>}
               </div>

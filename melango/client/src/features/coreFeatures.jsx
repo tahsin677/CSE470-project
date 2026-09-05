@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Search } from '../icons'
 import api, { apiError, courseApi, unwrap, userApi } from '../services/api'
 import { CoursePicker, Empty, fmtDate, Loading, Panel, useAccessibleCourses } from './shared'
 
@@ -126,6 +126,8 @@ export function MyCourses({ user }) {
       if (user.role === 'student') {
         const enrollments = unwrap(await courseApi.myEnrollments()) || []
         setItems(enrollments.map((e) => ({ ...e.courseId, enrolledAt: e.enrolledAt, status: e.status })).filter((c) => c._id))
+      } else if (user.role === 'admin') {
+        setItems(unwrap(await courseApi.list()) || [])
       } else {
         setItems(unwrap(await courseApi.list({ mine: 'true' })) || [])
       }
@@ -155,7 +157,7 @@ export function MyCourses({ user }) {
       {user.role === 'student' && (
         <form className="d-flex gap-2 mb-3" onSubmit={join}>
           <input className="form-control" placeholder="Enter enrollment code" value={code} onChange={(e) => setCode(e.target.value)} required />
-          <button className="btn btn-primary">Join course</button>
+          <button className="btn btn-primary btn-join-course">Join course</button>
         </form>
       )}
       {message && <p className="small">{message}</p>}

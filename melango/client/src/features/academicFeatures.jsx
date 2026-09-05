@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus } from '../icons'
 import api, { apiError, contentApi, unwrap } from '../services/api'
 import { CoursePicker, Empty, fmtDate, Loading, Panel, useAccessibleCourses } from './shared'
 
@@ -206,6 +206,7 @@ export function MaterialsFeature({ user }) {
   const complete = async (id) => {
     try {
       await api.post(`/progress/material/${id}/complete`)
+      setMaterials((list) => list.map((item) => item._id === id ? { ...item, isCompleted: true } : item))
       setMessage('Marked as complete.')
     } catch (err) {
       setMessage(apiError(err))
@@ -233,7 +234,13 @@ export function MaterialsFeature({ user }) {
                 <div className="list-group-item px-0 d-flex justify-content-between align-items-center" key={m._id}>
                   <div><b>{m.title}</b><small className="d-block text-muted">{m.fileType} · {fmtDate(m.createdAt)}</small></div>
                   <div className="d-flex gap-2">
-                    {user.role === 'student' && <button className="btn btn-sm btn-outline-primary" onClick={() => complete(m._id)}>Complete</button>}
+                    {user.role === 'student' && (
+                      m.isCompleted ? (
+                        <button type="button" className="btn btn-sm btn-material-done" aria-pressed="true">Completed</button>
+                      ) : (
+                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => complete(m._id)}>Complete</button>
+                      )
+                    )}
                     {isTeacher && <button className="btn btn-sm btn-outline-danger" onClick={async () => { await contentApi.removeMaterial(m._id); load() }}>Delete</button>}
                   </div>
                 </div>

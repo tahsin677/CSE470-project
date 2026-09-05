@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import api, { apiError, contentApi, engagementApi, unwrap } from '../services/api'
+import api, { apiError, asList, contentApi, engagementApi, unwrap } from '../services/api'
 import { CoursePicker, Empty, fmtDate, Loading, Panel, useAccessibleCourses } from './shared'
 
 /* Feature 12: Attendance */
@@ -29,7 +29,7 @@ export function AttendanceFeature({ user }) {
     } else if (user.role === 'student') {
       setLoading(true)
       try {
-        setRecords(unwrap(await api.get('/attendance/my')) || [])
+        setRecords(asList(unwrap(await api.get('/attendance/my'))))
       } catch {
         setRecords([])
       } finally {
@@ -104,7 +104,7 @@ export function AttendanceFeature({ user }) {
 export function CalendarFeature() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ title: '', eventDate: '', eventType: 'general', courseId: '' })
+  const [form, setForm] = useState({ title: '', eventDate: '', eventType: 'other', courseId: '' })
 
   const load = async () => {
     setLoading(true)
@@ -123,7 +123,7 @@ export function CalendarFeature() {
     e.preventDefault()
     try {
       await engagementApi.addCalendarEvent({ ...form, eventDate: new Date(form.eventDate).toISOString() })
-      setForm({ title: '', eventDate: '', eventType: 'general', courseId: '' })
+      setForm({ title: '', eventDate: '', eventType: 'other', courseId: '' })
       load()
     } catch (err) {
       alert(apiError(err))
@@ -158,7 +158,7 @@ export function ProgressFeature({ user }) {
 
   useEffect(() => {
     engagementApi.progress()
-      .then((r) => setRecords(unwrap(r) || []))
+      .then((r) => setRecords(asList(unwrap(r))))
       .catch(() => setRecords([]))
       .finally(() => setLoading(false))
   }, [])
@@ -176,11 +176,11 @@ export function ProgressFeature({ user }) {
       {loading ? <Loading /> : !records.length ? <Empty title="progress" /> : (
         <div className="list-group list-group-flush">
           {records.map((p) => (
-            <div className="list-group-item px-0 py-3" key={p._id || p.courseId}>
+            <div className="list-group-item px-0 py-3" key={p._id || p.course?._id || p.courseId}>
               <div className="d-flex justify-content-between align-items-center">
                 <div>
-                  <b>{p.courseId?.courseName || p.courseName || 'Course'}</b>
-                  <small className="d-block text-muted">{p.completedMaterials?.length || 0} materials completed</small>
+                  <b>{p.course?.courseName || p.courseId?.courseName || p.courseName || 'Course'}</b>
+                  <small className="d-block text-muted">{p.completedCount ?? p.completedMaterials?.length ?? 0} materials completed</small>
                 </div>
                 <div className="text-end">
                   <strong>{p.completionPercentage ?? 0}%</strong>

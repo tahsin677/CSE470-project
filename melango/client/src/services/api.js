@@ -1,12 +1,24 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api' })
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  timeout: 15000,
+})
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('melango_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 export const unwrap = (response) => response.data?.data ?? response.data
+export const asList = (value, keys = ['notifications', 'messages', 'records', 'courses', 'items']) => {
+  if (Array.isArray(value)) return value
+  if (value && typeof value === 'object') {
+    for (const key of keys) {
+      if (Array.isArray(value[key])) return value[key]
+    }
+  }
+  return []
+}
 export const apiError = (error) => error.response?.data?.message || 'Something went wrong. Please try again.'
 
 export const authApi = {
@@ -36,7 +48,7 @@ export const contentApi = {
   discussions: (courseId) => api.get(`/courses/${courseId}/discussions`), addDiscussion: (courseId, data) => api.post(`/courses/${courseId}/discussions`, data), reply: (id, data) => api.post(`/discussions/${id}/reply`, data),
   attendance: (courseId) => api.get(`/courses/${courseId}/attendance`), takeAttendance: (courseId, data) => api.post(`/courses/${courseId}/attendance`, data),
 }
-export const userApi = { list: () => api.get('/users'), updateRole: (id, data) => api.patch(`/users/${id}/role`, data), remove: (id) => api.delete(`/users/${id}`) }
+export const userApi = { list: (params) => api.get('/users', { params }), updateRole: (id, data) => api.patch(`/users/${id}/role`, data), remove: (id) => api.delete(`/users/${id}`) }
 export const engagementApi = {
   messages: () => api.get('/messages'), conversation: (id) => api.get(`/messages/${id}`), sendMessage: (data) => api.post('/messages', data),
   notifications: () => api.get('/notifications'), readNotification: (id) => api.patch(`/notifications/${id}/read`), readAllNotifications: () => api.patch('/notifications/read-all'),

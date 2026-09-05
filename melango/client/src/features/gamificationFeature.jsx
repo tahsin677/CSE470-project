@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Award, Star, Trophy } from 'lucide-react'
+import { Award, Star, Trophy } from '../icons'
 import { gamificationApi, unwrap } from '../services/api'
 import { Empty, Loading, Panel } from './shared'
 

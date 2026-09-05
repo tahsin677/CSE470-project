@@ -9,9 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hugeicons/core-free-icons": "^4.3.0",
+    "@hugeicons/react": "^1.1.10",
     "axios": "^1.13.6",
     "bootstrap": "^5.3.8",
-    "lucide-react": "^0.576.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1",

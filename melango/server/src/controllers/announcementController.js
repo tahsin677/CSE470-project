@@ -72,7 +72,7 @@ const createAnnouncement = asyncHandler(async (req, res) => {
     message: title,
     type: 'announcement',
     courseId: course ? course._id : undefined,
-    link: '/announcements',
+    link: '/app/announcements',
   });
   await logActivity({
     userId: req.user._id,

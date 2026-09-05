@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FileText } from 'lucide-react'
+import { FileText } from '../icons'
 import { courseApi, unwrap } from '../services/api'
 
 export function Loading() {
@@ -16,7 +16,7 @@ export function Empty({ title, role, hint }) {
   )
 }
 
-export function useAccessibleCourses(user) {
+export function useAccessibleCourses(user, { autoSelect = true } = {}) {
   const [courses, setCourses] = useState([])
   const [courseId, setCourseId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -26,19 +26,18 @@ export function useAccessibleCourses(user) {
     const load = async () => {
       setLoading(true)
       try {
+        let list = []
         if (user.role === 'student') {
           const enrollments = unwrap(await courseApi.myEnrollments()) || []
-          const list = enrollments.map((e) => e.courseId).filter(Boolean)
-          if (active) {
-            setCourses(list)
-            if (list[0]?._id) setCourseId(list[0]._id)
-          }
+          list = enrollments.map((e) => e.courseId).filter(Boolean)
+        } else if (user.role === 'admin') {
+          list = unwrap(await courseApi.list()) || []
         } else {
-          const list = unwrap(await courseApi.list({ mine: 'true' })) || []
-          if (active) {
-            setCourses(list)
-            if (list[0]?._id) setCourseId(list[0]._id)
-          }
+          list = unwrap(await courseApi.list({ mine: 'true' })) || []
+        }
+        if (active) {
+          setCourses(list)
+          if (autoSelect && list[0]?._id) setCourseId(list[0]._id)
         }
       } catch {
         if (active) setCourses([])
@@ -48,15 +47,16 @@ export function useAccessibleCourses(user) {
     }
     load()
     return () => { active = false }
-  }, [user])
+  }, [user, autoSelect])
 
   return { courses, courseId, setCourseId, loading }
 }
 
-export function CoursePicker({ courses, courseId, setCourseId }) {
-  if (!courses.length) return <p className="text-muted small">Enroll in or create a course first.</p>
+export function CoursePicker({ courses, courseId, setCourseId, allowAll = false, allLabel = 'All courses' }) {
+  if (!courses.length && !allowAll) return <p className="text-muted small">Enroll in or create a course first.</p>
   return (
     <select className="form-select w-auto mb-3" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+      {allowAll ? <option value="">{allLabel}</option> : null}
       {courses.map((c) => (
         <option key={c._id} value={c._id}>{c.courseName}</option>
       ))}
