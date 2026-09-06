@@ -213,14 +213,12 @@ function Home() {
         <section className="journey-section">
           <div className="journey-inner">
             <div className="journey-head">
-              <p className="journey-eyebrow">How it works</p>
               <h2 className="section-title">Your Journey in <span className="text-purple">4 Easy Steps</span></h2>
               <p className="section-desc">Create an account, pick a course, learn by doing, and leave with a certificate</p>
             </div>
             <ol className="journey-path">
               <li>
                 <Link to="/register" className="journey-step">
-                  <span className="journey-step-num">01</span>
                   <div className="journey-step-media">
                     <img src="/images/journey-signup.jpg" alt=""/>
                     <span className="journey-step-icon"><Users size={18}/></span>
@@ -233,7 +231,6 @@ function Home() {
               </li>
               <li>
                 <Link to="/courses" className="journey-step">
-                  <span className="journey-step-num">02</span>
                   <div className="journey-step-media">
                     <img src="/images/journey-choose.jpg" alt=""/>
                     <span className="journey-step-icon"><BookOpen size={18}/></span>
@@ -246,7 +243,6 @@ function Home() {
               </li>
               <li>
                 <Link to="/courses" className="journey-step">
-                  <span className="journey-step-num">03</span>
                   <div className="journey-step-media">
                     <img src="/images/journey-learn.jpg" alt=""/>
                     <span className="journey-step-icon"><Play size={18}/></span>
@@ -259,7 +255,6 @@ function Home() {
               </li>
               <li>
                 <Link to="/register" className="journey-step">
-                  <span className="journey-step-num">04</span>
                   <div className="journey-step-media">
                     <img src="/images/journey-certified.jpg" alt=""/>
                     <span className="journey-step-icon"><Award size={18}/></span>
