@@ -1,19 +1,13 @@
 const express = require('express');
-const { body } = require('express-validator');
 const controller = require('../controllers/enrollmentController');
 const { protect, authorize } = require('../middleware/auth');
-const { validate, validateObjectId } = require('../middleware/validate');
+const { validateObjectId } = require('../middleware/validate');
 
 const router = express.Router();
 
 router.use(protect);
 
-router.post(
-  '/join',
-  [body('enrollmentCode').trim().notEmpty().withMessage('Enrollment code is required')],
-  validate,
-  controller.joinCourse
-);
+router.post('/join', authorize('student'), controller.joinCourse);
 
 router.get('/my', controller.myEnrollments);
 

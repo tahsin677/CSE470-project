@@ -21,6 +21,7 @@ const notificationSchema = new mongoose.Schema(
         'enrollment',
         'certificate',
         'payment',
+        'deadline',
         'system',
       ],
       default: 'system',

@@ -18,6 +18,12 @@ const { logActivity } = require('../services/activityService');
 const { notify, notifyMany } = require('../services/notificationService');
 const emailService = require('../services/emailService');
 
+function isDueSoon(dueDate, hours = 48) {
+  const due = new Date(dueDate);
+  const now = new Date();
+  return due > now && due.getTime() - now.getTime() <= hours * 60 * 60 * 1000;
+}
+
 // GET /api/courses/:courseId/assignments
 const listAssignments = asyncHandler(async (req, res) => {
   const { course } = await assertCourseAccess(req.params.courseId, req.user);
@@ -28,7 +34,7 @@ const listAssignments = asyncHandler(async (req, res) => {
     const submissions = await Submission.find({
       studentId: req.user._id,
       assignmentId: { $in: assignments.map((a) => a._id) },
-    });
+    }).populate('feedbackId');
     const byAssignment = new Map(submissions.map((s) => [String(s.assignmentId), s]));
 
     const data = assignments.map((a) => ({
@@ -104,8 +110,17 @@ const createAssignment = asyncHandler(async (req, res) => {
     message: `"${assignment.title}" is due ${new Date(assignment.dueDate).toLocaleString()}`,
     type: 'assignment',
     courseId: course._id,
-    link: `/assignments/${assignment._id}`,
+    link: '/app/assignments',
   });
+  if (isDueSoon(assignment.dueDate)) {
+    await notifyMany(studentIds, {
+      title: 'Assignment deadline approaching',
+      message: `"${assignment.title}" is due ${new Date(assignment.dueDate).toLocaleString()}`,
+      type: 'deadline',
+      courseId: course._id,
+      link: `/assignments/${assignment._id}`,
+    });
+  }
   await logActivity({
     userId: req.user._id,
     action: 'assignment.created',
@@ -127,12 +142,34 @@ const updateAssignment = asyncHandler(async (req, res) => {
   if (!course || !isCourseOwner(course, req.user)) throw ApiError.forbidden();
 
   const { title, description, dueDate, totalMarks, allowResubmission } = req.body;
+  const previousDue = assignment.dueDate;
   if (title !== undefined) assignment.title = title;
   if (description !== undefined) assignment.description = description;
   if (dueDate !== undefined) assignment.dueDate = dueDate;
   if (totalMarks !== undefined) assignment.totalMarks = Number(totalMarks);
   if (allowResubmission !== undefined) assignment.allowResubmission = Boolean(allowResubmission);
   await assignment.save();
+
+  const dueChanged = dueDate !== undefined && new Date(previousDue).getTime() !== new Date(assignment.dueDate).getTime();
+  if (dueChanged) {
+    const studentIds = await getEnrolledStudentIds(course._id);
+    await notifyMany(studentIds, {
+      title: 'Assignment rescheduled',
+      message: `"${assignment.title}" is now due ${new Date(assignment.dueDate).toLocaleString()}`,
+      type: 'assignment',
+      courseId: course._id,
+      link: '/app/assignments',
+    });
+    if (isDueSoon(assignment.dueDate)) {
+      await notifyMany(studentIds, {
+        title: 'Assignment deadline approaching',
+        message: `"${assignment.title}" is now due ${new Date(assignment.dueDate).toLocaleString()}`,
+        type: 'deadline',
+        courseId: course._id,
+        link: `/assignments/${assignment._id}`,
+      });
+    }
+  }
 
   return ok(res, assignment);
 });
@@ -190,9 +227,6 @@ const submitAssignment = asyncHandler(async (req, res) => {
     if (isLate && !assignment.allowResubmission) {
       throw ApiError.badRequest('The deadline has passed - resubmission is closed');
     }
-    if (isLate) {
-      throw ApiError.badRequest('The deadline has passed - you can no longer resubmit');
-    }
 
     if (meta && existing.filePath && fs.existsSync(existing.filePath)) {
       fs.promises.unlink(existing.filePath).catch(() => {});
@@ -208,7 +242,7 @@ const submitAssignment = asyncHandler(async (req, res) => {
     }
     existing.submittedAt = new Date();
     existing.attemptCount += 1;
-    existing.status = 'submitted';
+    existing.status = isLate ? 'late' : 'submitted';
     await existing.save();
 
     return ok(res, existing);
@@ -238,7 +272,7 @@ const submitAssignment = asyncHandler(async (req, res) => {
     message: `${req.user.name} submitted "${assignment.title}"`,
     type: 'assignment',
     courseId: assignment.courseId,
-    link: `/assignments/${assignment._id}/submissions`,
+    link: '/app/assignments',
   });
 
   return created(res, submission);
@@ -330,7 +364,7 @@ const gradeSubmission = asyncHandler(async (req, res) => {
     }"`,
     type: 'feedback',
     courseId: submission.courseId,
-    link: `/assignments/${submission.assignmentId}`,
+    link: '/app/assignments',
   });
   await logActivity({
     userId: req.user._id,

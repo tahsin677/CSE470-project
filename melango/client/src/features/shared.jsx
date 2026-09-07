@@ -82,3 +82,35 @@ export function fmtDate(value) {
   if (!value) return '—'
   return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
+
+export function toLocalInput(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+export function personName(value) {
+  if (!value) return 'User'
+  if (typeof value === 'string') return value
+  return value.name || value.userId?.name || 'User'
+}
+
+export function instructorName(course) {
+  if (!course) return 'Instructor'
+  return course.teacherId?.name || course.instructor?.name || 'Instructor'
+}
+
+export async function downloadBlob(request, fileName) {
+  const response = await request
+  const blob = response.data instanceof Blob ? response.data : new Blob([response.data])
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName || 'download'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}

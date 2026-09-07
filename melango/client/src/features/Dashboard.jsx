@@ -149,7 +149,7 @@ export function AppDashboard({ user }) {
                   <span>•</span>
                   <div>
                     <b>{item.title}</b>
-                    <small>{fmtDate(item.createdAt)}</small>
+                    <small>{item.postedBy?.name ? `From ${item.postedBy.name}` : ''}{item.courseId?.courseName ? ` · ${item.courseId.courseName}` : ''} · {fmtDate(item.createdAt)}</small>
                   </div>
                 </div>
               )) : <p className="text-muted small">No announcements yet.</p>}

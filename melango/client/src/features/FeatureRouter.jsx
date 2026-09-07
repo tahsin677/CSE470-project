@@ -1,7 +1,7 @@
 import React from 'react'
 import { useLocation } from 'react-router-dom'
 import { AssignmentsFeature, MaterialsFeature, QuizzesFeature } from './academicFeatures'
-import { AnnouncementsFeature, DiscussionsFeature, MessagesFeature, NotificationsFeature } from './communityFeatures'
+import { AnnouncementsFeature, DiscussionsFeature, MessagesFeature, NotificationsFeature, ReviewsFeature } from './communityFeatures'
 import { AdminPanel, CourseCreation, MyCourses, RoleManagement, SearchFilter } from './coreFeatures'
 import { AttendanceFeature, CalendarFeature, ProgressFeature } from './trackingFeatures'
 import { GamificationFeature } from './gamificationFeature'
@@ -22,7 +22,7 @@ function PageShell({ user, eyebrow, title, children }) {
 
 const FEATURE_MAP = {
   users: { title: 'User management', Component: RoleManagement },
-  'create-course': { title: 'Create course', Component: CourseCreation },
+  'create-course': { title: 'Create course', Component: CourseCreation, roles: ['teacher', 'admin'] },
   courses: { title: 'Courses', Component: MyCourses },
   search: { title: 'Search', Component: SearchFilter },
   assignments: { title: 'Assignments', Component: AssignmentsFeature },
@@ -40,7 +40,7 @@ const FEATURE_MAP = {
   categories: { title: 'Admin panel', Component: AdminPanel },
   students: { title: 'Students', Component: MyCourses },
   certificates: { title: 'Certificates', Component: ProgressFeature },
-  reviews: { title: 'Reviews', Component: ProgressFeature },
+  reviews: { title: 'Reviews', Component: ReviewsFeature },
   profile: { title: 'Settings', Component: null },
 }
 
@@ -56,7 +56,15 @@ export function FeatureRouter({ user }) {
     )
   }
 
-  const { title, Component } = feature
+  const { title, Component, roles } = feature
+  if (roles && !roles.includes(user.role)) {
+    return (
+      <PageShell user={user} eyebrow={`${user.role.toUpperCase()} WORKSPACE`} title={title}>
+        <p className="text-muted">Only teachers can create courses. Students enroll with a code, subject, or instructor name.</p>
+      </PageShell>
+    )
+  }
+
   if (!Component) {
     return (
       <PageShell user={user} eyebrow={`${user.role.toUpperCase()} WORKSPACE`} title={title}>

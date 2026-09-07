@@ -23,4 +23,12 @@ router.post(
 
 router.delete('/:id', validateObjectId(), controller.deleteAnnouncement);
 
+router.post(
+  '/:id/comments',
+  validateObjectId(),
+  [body('message').trim().notEmpty().withMessage('Comment is required')],
+  validate,
+  controller.commentOnAnnouncement
+);
+
 module.exports = router;

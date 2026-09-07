@@ -2,10 +2,22 @@ const mongoose = require('mongoose');
 
 const reviewSchema = new mongoose.Schema(
   {
+    targetType: {
+      type: String,
+      enum: ['course', 'teacher', 'app'],
+      default: 'course',
+      index: true,
+    },
     courseId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course',
-      required: true,
+      default: null,
+      index: true,
+    },
+    teacherId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
       index: true,
     },
     studentId: {
@@ -20,12 +32,22 @@ const reviewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-reviewSchema.index({ courseId: 1, studentId: 1 }, { unique: true });
+reviewSchema.index(
+  { courseId: 1, studentId: 1 },
+  { unique: true, partialFilterExpression: { targetType: 'course' } }
+);
+reviewSchema.index(
+  { teacherId: 1, studentId: 1 },
+  { unique: true, partialFilterExpression: { targetType: 'teacher' } }
+);
+reviewSchema.index(
+  { studentId: 1, targetType: 1 },
+  { unique: true, partialFilterExpression: { targetType: 'app' } }
+);
 
-// Keeps the denormalised rating fields on Course in sync.
 reviewSchema.statics.recalculateCourseRating = async function recalc(courseId) {
   const [stats] = await this.aggregate([
-    { $match: { courseId: new mongoose.Types.ObjectId(courseId) } },
+    { $match: { courseId: new mongoose.Types.ObjectId(courseId), targetType: 'course' } },
     {
       $group: {
         _id: '$courseId',

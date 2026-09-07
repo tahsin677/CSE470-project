@@ -2,9 +2,11 @@ const Notification = require('../models/Notification');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const { ok } = require('../utils/response');
+const { ensureDeadlineReminders } = require('../services/notificationService');
 
 // GET /api/notifications?unread=true&limit=
 const listNotifications = asyncHandler(async (req, res) => {
+  await ensureDeadlineReminders(req.user);
   const filter = { userId: req.user._id };
   if (req.query.unread === 'true') filter.isRead = false;
 

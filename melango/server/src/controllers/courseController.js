@@ -1,5 +1,7 @@
+const mongoose = require('mongoose');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
+const User = require('../models/User');
 const LearningMaterial = require('../models/LearningMaterial');
 const Assignment = require('../models/Assignment');
 const Quiz = require('../models/Quiz');
@@ -24,14 +26,31 @@ const listCourses = asyncHandler(async (req, res) => {
   const filter = {};
 
   if (search) {
+    const teachers = await User.find({
+      role: { $in: ['teacher', 'admin'] },
+      name: { $regex: search, $options: 'i' },
+    }).select('_id');
     filter.$or = [
       { courseName: { $regex: search, $options: 'i' } },
       { description: { $regex: search, $options: 'i' } },
       { category: { $regex: search, $options: 'i' } },
+      { enrollmentCode: { $regex: search, $options: 'i' } },
     ];
+    if (teachers.length) filter.$or.push({ teacherId: { $in: teachers.map((t) => t._id) } });
   }
-  if (category) filter.category = category;
-  if (instructor) filter.teacherId = instructor;
+  if (category) filter.category = { $regex: category, $options: 'i' };
+  if (instructor) {
+    const isId = mongoose.Types.ObjectId.isValid(instructor) && String(new mongoose.Types.ObjectId(instructor)) === String(instructor);
+    if (isId) {
+      filter.teacherId = instructor;
+    } else {
+      const teachers = await User.find({
+        role: { $in: ['teacher', 'admin'] },
+        name: { $regex: instructor, $options: 'i' },
+      }).select('_id');
+      filter.teacherId = { $in: teachers.map((t) => t._id) };
+    }
+  }
   if (mine === 'true' && req.user) filter.teacherId = req.user._id;
 
   const courses = await Course.find(filter)

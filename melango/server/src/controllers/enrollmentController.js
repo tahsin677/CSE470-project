@@ -10,13 +10,22 @@ const { logActivity } = require('../services/activityService');
 const { notify } = require('../services/notificationService');
 const emailService = require('../services/emailService');
 
-// POST /api/enrollments/join  { enrollmentCode }
+// POST /api/enrollments/join  { enrollmentCode } or { courseId }
 const joinCourse = asyncHandler(async (req, res) => {
-  const code = String(req.body.enrollmentCode || '').trim().toUpperCase();
-  if (!code) throw ApiError.badRequest('Enrollment code is required');
+  if (req.user.role !== 'student') {
+    throw ApiError.forbidden('Only students can enroll in courses. Teachers create and teach them.');
+  }
 
-  const course = await Course.findOne({ enrollmentCode: code });
-  if (!course) throw ApiError.notFound('No course matches that enrollment code');
+  const code = String(req.body.enrollmentCode || '').trim().toUpperCase();
+  let course = null;
+  if (req.body.courseId) {
+    course = await Course.findById(req.body.courseId);
+  } else if (code) {
+    course = await Course.findOne({ enrollmentCode: code });
+  } else {
+    throw ApiError.badRequest('Provide an enrollment code or choose a course');
+  }
+  if (!course) throw ApiError.notFound('No matching course found');
 
   if (String(course.teacherId) === String(req.user._id)) {
     throw ApiError.badRequest('You are the instructor of this course');
@@ -76,7 +85,10 @@ const joinCourse = asyncHandler(async (req, res) => {
   });
   emailService.sendEnrollmentEmail(req.user, course);
 
-  const populated = await enrollment.populate('courseId');
+  const populated = await enrollment.populate({
+    path: 'courseId',
+    populate: { path: 'teacherId', select: 'name email profileImage designation' },
+  });
   return created(res, populated);
 });
 

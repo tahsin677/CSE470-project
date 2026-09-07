@@ -1,32 +1,33 @@
 import React, { useEffect, useState } from 'react'
 import { Plus } from '../icons'
 import api, { apiError, contentApi, unwrap } from '../services/api'
-import { CoursePicker, Empty, fmtDate, Loading, Panel, useAccessibleCourses } from './shared'
+import { CoursePicker, Empty, downloadBlob, fmtDate, Loading, Panel, toLocalInput, useAccessibleCourses } from './shared'
+
+const emptyAssignment = { title: '', description: '', dueDate: '', totalMarks: 100, allowResubmission: true }
+const emptySubmit = { assignmentId: '', text: '', link: '', file: null }
 
 /* Features 5–8: Assignments, Submission, Grading, Feedback */
 export function AssignmentsFeature({ user }) {
   const { courses, courseId, setCourseId, loading: coursesLoading } = useAccessibleCourses(user)
   const [assignments, setAssignments] = useState([])
-  const [submissions, setSubmissions] = useState([])
+  const [teacherSubs, setTeacherSubs] = useState([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', dueDate: '', totalMarks: 100 })
-  const [submitForm, setSubmitForm] = useState({ assignmentId: '', text: '', link: '' })
+  const [editingId, setEditingId] = useState(null)
+  const [form, setForm] = useState(emptyAssignment)
+  const [submitForm, setSubmitForm] = useState(emptySubmit)
   const [message, setMessage] = useState('')
+  const [messageOk, setMessageOk] = useState(true)
   const [viewSubmissions, setViewSubmissions] = useState(null)
+  const isTeacher = user.role === 'teacher' || user.role === 'admin'
 
   const load = async () => {
     if (!courseId) return
     setLoading(true)
     try {
       setAssignments(unwrap(await contentApi.assignments(courseId)) || [])
-      if (user.role === 'student') {
-        const all = unwrap(await contentApi.mySubmissions()) || []
-        setSubmissions(all.filter((s) => String(s.courseId?._id || s.courseId) === String(courseId)))
-      }
     } catch {
       setAssignments([])
-      setSubmissions([])
     } finally {
       setLoading(false)
     }
@@ -34,27 +35,93 @@ export function AssignmentsFeature({ user }) {
 
   useEffect(() => { load() }, [courseId, user.role])
 
-  const createAssignment = async (e) => {
+  const resetForm = () => {
+    setShowForm(false)
+    setEditingId(null)
+    setForm(emptyAssignment)
+  }
+
+  const startCreate = () => {
+    setEditingId(null)
+    setForm(emptyAssignment)
+    setShowForm((open) => !open || Boolean(editingId))
+  }
+
+  const startEdit = (assignment) => {
+    setEditingId(assignment._id)
+    setForm({
+      title: assignment.title || '',
+      description: assignment.description || '',
+      dueDate: toLocalInput(assignment.dueDate),
+      totalMarks: assignment.totalMarks || 100,
+      allowResubmission: assignment.allowResubmission !== false,
+    })
+    setShowForm(true)
+  }
+
+  const saveAssignment = async (e) => {
     e.preventDefault()
+    const payload = {
+      title: form.title,
+      description: form.description,
+      dueDate: new Date(form.dueDate).toISOString(),
+      totalMarks: Number(form.totalMarks) || 100,
+      allowResubmission: Boolean(form.allowResubmission),
+    }
     try {
-      await contentApi.addAssignment(courseId, { ...form, dueDate: new Date(form.dueDate).toISOString() })
-      setMessage('Assignment created.')
-      setShowForm(false)
-      setForm({ title: '', description: '', dueDate: '', totalMarks: 100 })
+      if (editingId) {
+        await contentApi.updateAssignment(editingId, payload)
+        setMessageOk(true)
+        setMessage('Assignment updated.')
+      } else {
+        await contentApi.addAssignment(courseId, payload)
+        setMessageOk(true)
+        setMessage('Assignment created.')
+      }
+      resetForm()
       load()
     } catch (err) {
+      setMessageOk(false)
+      setMessage(apiError(err))
+    }
+  }
+
+  const deleteAssignment = async (assignment) => {
+    if (!window.confirm(`Delete "${assignment.title}"? This also removes submissions.`)) return
+    try {
+      await contentApi.removeAssignment(assignment._id)
+      if (viewSubmissions === assignment._id) {
+        setViewSubmissions(null)
+        setTeacherSubs([])
+      }
+      setMessageOk(true)
+      setMessage('Assignment deleted.')
+      load()
+    } catch (err) {
+      setMessageOk(false)
       setMessage(apiError(err))
     }
   }
 
   const submitWork = async (e) => {
     e.preventDefault()
+    if (!submitForm.text && !submitForm.link && !submitForm.file) {
+      setMessageOk(false)
+      setMessage('Add a file, written answer, or link before submitting.')
+      return
+    }
+    const data = new FormData()
+    if (submitForm.text) data.append('text', submitForm.text)
+    if (submitForm.link) data.append('link', submitForm.link)
+    if (submitForm.file) data.append('file', submitForm.file)
     try {
-      await contentApi.submitAssignment(submitForm.assignmentId, { text: submitForm.text, link: submitForm.link })
+      await contentApi.submitAssignment(submitForm.assignmentId, data)
+      setMessageOk(true)
       setMessage('Submission sent!')
-      setSubmitForm({ assignmentId: '', text: '', link: '' })
+      setSubmitForm(emptySubmit)
       load()
     } catch (err) {
+      setMessageOk(false)
       setMessage(apiError(err))
     }
   }
@@ -62,52 +129,103 @@ export function AssignmentsFeature({ user }) {
   const loadSubmissions = async (assignmentId) => {
     setViewSubmissions(assignmentId)
     try {
-      const data = unwrap(await api.get(`/assignments/${assignmentId}/submissions`)) || []
-      setSubmissions(data)
+      setTeacherSubs(unwrap(await contentApi.submissions(assignmentId)) || [])
     } catch {
-      setSubmissions([])
+      setTeacherSubs([])
     }
   }
 
-  const isTeacher = user.role === 'teacher' || user.role === 'admin'
+  const downloadFile = async (submission) => {
+    try {
+      await downloadBlob(contentApi.downloadSubmission(submission._id), submission.originalName || submission.fileName || 'submission')
+    } catch (err) {
+      setMessageOk(false)
+      setMessage(apiError(err))
+    }
+  }
+
+  const studentWork = (assignment) => assignment.mySubmission || null
+  const canStudentSubmit = (assignment) => {
+    const mine = studentWork(assignment)
+    if (!mine) return true
+    if (mine.status === 'graded') return false
+    const overdue = new Date(assignment.dueDate) < new Date()
+    return !overdue || assignment.allowResubmission
+  }
 
   return (
     <Panel
       title="Assignments"
       action={isTeacher && courseId ? (
-        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}><Plus size={16} /> Add</button>
+        <button type="button" className="btn btn-primary btn-sm" onClick={startCreate}><Plus size={16} /> {showForm && !editingId ? 'Close' : 'Add'}</button>
       ) : null}
     >
       {coursesLoading ? <Loading /> : (
         <>
           <CoursePicker courses={courses} courseId={courseId} setCourseId={setCourseId} />
-          {message && <p className="small text-success">{message}</p>}
+          {message && <p className={`small ${messageOk ? 'text-success' : 'text-danger'}`}>{message}</p>}
 
           {showForm && isTeacher && (
-            <form className="border rounded p-3 mb-3" onSubmit={createAssignment}>
+            <form className="border rounded p-3 mb-3" onSubmit={saveAssignment}>
+              <h6 className="mb-2">{editingId ? 'Edit assignment' : 'Create assignment'}</h6>
               <label className="d-block mb-2">Title<input className="form-control" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
               <label className="d-block mb-2">Description<textarea className="form-control" rows="2" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
               <label className="d-block mb-2">Due date<input type="datetime-local" className="form-control" required value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></label>
-              <button className="btn btn-primary btn-sm">Save assignment</button>
+              <label className="d-block mb-2">Total marks<input type="number" min="1" className="form-control" required value={form.totalMarks} onChange={(e) => setForm({ ...form, totalMarks: e.target.value })} /></label>
+              <label className="form-check mb-3">
+                <input className="form-check-input" type="checkbox" checked={form.allowResubmission} onChange={(e) => setForm({ ...form, allowResubmission: e.target.checked })} />
+                <span className="form-check-label">Allow resubmission after the deadline</span>
+              </label>
+              <div className="d-flex gap-2">
+                <button type="submit" className="btn btn-primary btn-sm">{editingId ? 'Save changes' : 'Save assignment'}</button>
+                <button type="button" className="btn btn-outline-secondary btn-sm" onClick={resetForm}>Cancel</button>
+              </div>
             </form>
           )}
 
           {loading ? <Loading /> : !assignments.length ? <Empty title="assignments" role={user.role} /> : (
             <div className="list-group list-group-flush">
               {assignments.map((a) => {
-                const mine = submissions.find((s) => String(s.assignmentId?._id || s.assignmentId) === String(a._id))
+                const mine = studentWork(a)
+                const overdue = new Date(a.dueDate) < new Date()
                 return (
                   <div className="list-group-item px-0 py-3" key={a._id}>
-                    <div className="d-flex justify-content-between">
+                    <div className="d-flex justify-content-between gap-3 flex-wrap">
                       <div>
                         <b>{a.title}</b>
-                        <small className="d-block text-muted">Due {fmtDate(a.dueDate)} · {a.totalMarks} marks</small>
-                        {mine && <small className="d-block">Status: {mine.status}{mine.marks != null ? ` · ${mine.marks} marks` : ''}</small>}
+                        <small className="d-block text-muted">
+                          Due {fmtDate(a.dueDate)} · {a.totalMarks} marks
+                          {overdue ? ' · overdue' : ''}
+                          {isTeacher ? ` · ${a.submissionCount || 0} submissions` : ''}
+                        </small>
+                        {a.description ? <p className="small mb-1 mt-1">{a.description}</p> : null}
+                        {mine && (
+                          <div className="small mt-1">
+                            <div>Status: {mine.status}{mine.marks != null ? ` · ${mine.marks}/${a.totalMarks} marks` : ''}</div>
+                            {mine.fileName ? <div>File: {mine.originalName || mine.fileName}</div> : null}
+                            {mine.link ? <div>Link: {mine.link}</div> : null}
+                            {(mine.feedbackId?.comments || mine.feedback?.comments) ? (
+                              <div className="mt-1 p-2 rounded" style={{ background: '#f4f0ff' }}>
+                                <b>Teacher feedback:</b> {mine.feedbackId?.comments || mine.feedback?.comments}
+                              </div>
+                            ) : mine.status === 'graded' ? (
+                              <div className="text-muted">Graded — no written comments yet.</div>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
-                      <div className="d-flex gap-2">
-                        {isTeacher && <button className="btn btn-sm btn-outline-secondary" onClick={() => loadSubmissions(a._id)}>Submissions</button>}
-                        {user.role === 'student' && !mine && (
-                          <button className="btn btn-sm btn-primary" onClick={() => setSubmitForm({ ...submitForm, assignmentId: a._id })}>Submit</button>
+                      <div className="d-flex gap-2 align-items-start flex-wrap">
+                        {isTeacher && (
+                          <>
+                            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => startEdit(a)}>Edit</button>
+                            <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deleteAssignment(a)}>Delete</button>
+                            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => loadSubmissions(a._id)}>Submissions</button>
+                          </>
+                        )}
+                        {user.role === 'student' && canStudentSubmit(a) && (
+                          <button type="button" className="btn btn-sm btn-primary" onClick={() => setSubmitForm({ ...emptySubmit, assignmentId: a._id, text: mine?.text || '', link: mine?.link || '' })}>
+                            {mine ? 'Resubmit' : 'Submit'}
+                          </button>
                         )}
                       </div>
                     </div>
@@ -120,20 +238,32 @@ export function AssignmentsFeature({ user }) {
           {user.role === 'student' && submitForm.assignmentId && (
             <form className="border rounded p-3 mt-3" onSubmit={submitWork}>
               <h6>Submit assignment</h6>
+              <p className="small text-muted">Upload a file, write an answer, or add a link. At least one is required.</p>
               <textarea className="form-control mb-2" placeholder="Your answer or notes" value={submitForm.text} onChange={(e) => setSubmitForm({ ...submitForm, text: e.target.value })} />
               <input className="form-control mb-2" placeholder="Link (optional)" value={submitForm.link} onChange={(e) => setSubmitForm({ ...submitForm, link: e.target.value })} />
-              <button className="btn btn-primary btn-sm">Send submission</button>
+              <input type="file" className="form-control mb-2" onChange={(e) => setSubmitForm({ ...submitForm, file: e.target.files?.[0] || null })} />
+              <div className="d-flex gap-2">
+                <button type="submit" className="btn btn-primary btn-sm">Send submission</button>
+                <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSubmitForm(emptySubmit)}>Cancel</button>
+              </div>
             </form>
           )}
 
           {isTeacher && viewSubmissions && (
             <div className="mt-4">
               <h6>Submissions & grading</h6>
-              {!submissions.length ? <p className="text-muted small">No submissions yet.</p> : submissions.map((s) => (
+              {!teacherSubs.length ? <p className="text-muted small">No submissions yet.</p> : teacherSubs.map((s) => (
                 <div className="border rounded p-3 mb-2" key={s._id}>
                   <b>{s.studentId?.name || 'Student'}</b>
-                  <p className="small mb-1">{s.text || s.link || 'File submission'}</p>
-                  <small className="text-muted">Submitted {fmtDate(s.submittedAt)} · {s.status}</small>
+                  {s.text ? <p className="small mb-1">{s.text}</p> : null}
+                  {s.link ? <p className="small mb-1"><a href={s.link} target="_blank" rel="noreferrer">{s.link}</a></p> : null}
+                  {s.fileName ? (
+                    <button type="button" className="btn btn-link btn-sm px-0" onClick={() => downloadFile(s)}>
+                      Download {s.originalName || s.fileName}
+                    </button>
+                  ) : null}
+                  {!s.text && !s.link && !s.fileName ? <p className="small mb-1">File submission</p> : null}
+                  <small className="d-block text-muted">Submitted {fmtDate(s.submittedAt)} · {s.status}</small>
                   {s.status !== 'graded' ? (
                     <form className="mt-2 d-flex gap-2 flex-wrap" onSubmit={async (e) => {
                       e.preventDefault()
@@ -141,9 +271,11 @@ export function AssignmentsFeature({ user }) {
                       const comments = e.target.comments.value
                       try {
                         await contentApi.feedback(s._id, { marks: Number(marks), comments })
+                        setMessageOk(true)
                         setMessage('Graded successfully.')
                         loadSubmissions(viewSubmissions)
                       } catch (err) {
+                        setMessageOk(false)
                         setMessage(apiError(err))
                       }
                     }}>

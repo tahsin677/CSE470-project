@@ -101,6 +101,8 @@ const createEvent = asyncHandler(async (req, res) => {
     if (!isCourseOwner(course, req.user)) {
       throw ApiError.forbidden('You can only add events to your own courses');
     }
+  } else if (req.user.role === 'student') {
+    // Students may add personal reminders that are not tied to a course.
   }
 
   const event = await CalendarEvent.create({

@@ -22,6 +22,7 @@ const listAnnouncements = asyncHandler(async (req, res) => {
     const announcements = await Announcement.find({ courseId })
       .populate('postedBy', 'name role profileImage')
       .populate('courseId', 'courseName')
+      .populate('comments.userId', 'name role')
       .sort({ createdAt: -1 });
     return ok(res, announcements);
   }
@@ -34,6 +35,7 @@ const listAnnouncements = asyncHandler(async (req, res) => {
   })
     .populate('postedBy', 'name role profileImage')
     .populate('courseId', 'courseName')
+    .populate('comments.userId', 'name role')
     .sort({ createdAt: -1 });
 
   return ok(res, announcements);
@@ -104,4 +106,26 @@ const deleteAnnouncement = asyncHandler(async (req, res) => {
   return ok(res, { message: 'Announcement deleted successfully' });
 });
 
-module.exports = { listAnnouncements, createAnnouncement, deleteAnnouncement };
+// POST /api/announcements/:id/comments  { message }
+const commentOnAnnouncement = asyncHandler(async (req, res) => {
+  const announcement = await Announcement.findById(req.params.id);
+  if (!announcement) throw ApiError.notFound('Announcement not found');
+
+  if (announcement.courseId) {
+    await assertCourseAccess(announcement.courseId, req.user);
+  }
+
+  const message = String(req.body.message || '').trim();
+  if (!message) throw ApiError.badRequest('Comment is required');
+
+  announcement.comments.push({ userId: req.user._id, message });
+  await announcement.save();
+
+  const populated = await Announcement.findById(announcement._id)
+    .populate('postedBy', 'name role profileImage')
+    .populate('courseId', 'courseName')
+    .populate('comments.userId', 'name role');
+  return created(res, populated);
+});
+
+module.exports = { listAnnouncements, createAnnouncement, deleteAnnouncement, commentOnAnnouncement };
